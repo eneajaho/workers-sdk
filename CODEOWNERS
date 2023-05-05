@@ -1,8 +1,8 @@
 # Global owners
 * @cloudflare/wrangler
-/.changeset/ @cloudflare/wrangler @cloudflare/pages
-/fixtures/ @cloudflare/wrangler @cloudflare/pages
-*.test.* @cloudflare/wrangler @cloudflare/pages
+/.changeset/ @cloudflare/wrangler @cloudflare/pages @cloudflare/d1
+/fixtures/ @cloudflare/wrangler @cloudflare/pages @cloudflare/d1
+*.test.* @cloudflare/wrangler @cloudflare/pages @cloudflare/d1
 /packages/wrangler/CHANGELOG.md @cloudflare/wrangler-admins
 /packages/pages-shared/ @cloudflare/pages
 /packages/wrangler/pages/ @cloudflare/pages
