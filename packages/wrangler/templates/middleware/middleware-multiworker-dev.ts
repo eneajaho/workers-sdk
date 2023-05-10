@@ -1,6 +1,7 @@
+// @ts-nocheck
 /// <reference path="middleware-multiworker-dev.d.ts"/>
 
-import { Workers } from "config:middleware/multiworker-dev";
+import { workers } from "config:middleware/multiworker-dev";
 
 export function wrap(env: Record<string, unknown>) {
 	const facadeEnv = { ...env };
@@ -10,7 +11,7 @@ export function wrap(env: Record<string, unknown>) {
 	// if Workers[name]
 	// const details = Workers[name];
 
-	for (const [name, details] of Object.entries(Workers)) {
+	for (const [name, details] of Object.entries(workers)) {
 		if (details) {
 			facadeEnv[name] = {
 				async fetch(...reqArgs) {
