@@ -1,6 +1,6 @@
 {
 	"name": "create-cloudflare",
-	"version": "2.0.0-next.2",
+	"version": "2.0.0-next.3",
 	"description": "",
 	"license": "ISC",
 	"author": "",
@@ -40,6 +40,7 @@
 		"execa": "^7.1.1",
 		"haikunator": "^2.1.2",
 		"log-update": "^5.0.1",
+		"open": "^8.4.0",
 		"recast": "^0.22.0",
 		"typescript": "^5.0.2",
 		"undici": "^5.22.0",
