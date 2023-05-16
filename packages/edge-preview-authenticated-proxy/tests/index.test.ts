@@ -78,7 +78,7 @@ describe("Preview Worker", () => {
 		} catch {}
 	});
 
-	let tokenId: string | null = null;
+	let cookie: string | null = null;
 
 	it("should obtain token from exchange_url", async () => {
 		const resp = await worker.fetch(
@@ -101,8 +101,10 @@ describe("Preview Worker", () => {
 	});
 	it("should allow tokens > 4096 bytes", async () => {
 		// 4096 is the size limit for cookies
-		const token = randomBytes(4096).toString("hex");
-		expect(token.length).toBe(8192);
+		const token =
+			randomBytes(4096).toString("hex") +
+			/*check URL encoding can roud trip*/ " $#";
+		expect(token.length).toBe(8195);
 
 		let resp = await worker.fetch(
 			`https://random-data.preview.devprod.cloudflare.dev/.update-preview-token?token=${encodeURIComponent(
@@ -121,22 +123,22 @@ describe("Preview Worker", () => {
 		expect(resp.headers.get("location")).toMatchInlineSnapshot(
 			'"/hello?world"'
 		);
-		expect(removeUUID(resp.headers.get("set-cookie"))).toMatchInlineSnapshot(
-			'"token=00000000-0000-0000-0000-000000000000; Domain=preview.devprod.cloudflare.dev; HttpOnly; Secure; SameSite=None"'
-		);
-		tokenId = resp.headers.get("set-cookie").split(";")[0].split("=")[1];
+		expect(resp.headers.getSetCookie("set-cookie").length).toBe(9);
+		cookie = resp.headers
+			.getSetCookie("set-cookie")
+			.map((c: string) => c.split(";")[0])
+			.join("; ");
 		resp = await worker.fetch(
 			`https://random-data.preview.devprod.cloudflare.dev`,
 			{
 				method: "GET",
 				headers: {
-					cookie: `token=${tokenId}; Domain=preview.devprod.cloudflare.dev; HttpOnly; Secure; SameSite=None`,
+					cookie,
 				},
 			}
 		);
 
 		const json = await resp.json();
-
 		expect(
 			json.headers.find(([h]: [string]) => h === "cf-workers-preview-token")[1]
 		).toBe(token);
@@ -159,10 +161,14 @@ describe("Preview Worker", () => {
 		expect(resp.headers.get("location")).toMatchInlineSnapshot(
 			'"/hello?world"'
 		);
-		expect(removeUUID(resp.headers.get("set-cookie"))).toMatchInlineSnapshot(
-			'"token=00000000-0000-0000-0000-000000000000; Domain=preview.devprod.cloudflare.dev; HttpOnly; Secure; SameSite=None"'
+		expect(resp.headers.getSetCookie("set-cookie").length).toBe(1);
+		cookie = resp.headers
+			.getSetCookie("set-cookie")
+			.map((c: string) => c.split(";")[0])
+			.join("; ");
+		expect(cookie).toMatchInlineSnapshot(
+			'"cf-preview-token-0=%7B%22token%22%3A%22TEST_TOKEN%22%2C%22remote%22%3A%22http%3A%2F%2F127.0.0.1%3A6756%22%7D"'
 		);
-		tokenId = resp.headers.get("set-cookie").split(";")[0].split("=")[1];
 	});
 
 	it("should convert cookie to header", async () => {
@@ -171,7 +177,7 @@ describe("Preview Worker", () => {
 			{
 				method: "GET",
 				headers: {
-					cookie: `token=${tokenId}; Domain=preview.devprod.cloudflare.dev; HttpOnly; Secure; SameSite=None`,
+					cookie,
 				},
 			}
 		);
@@ -190,7 +196,7 @@ describe("Preview Worker", () => {
 			{
 				method: "GET",
 				headers: {
-					cookie: `token=${tokenId}; Domain=preview.devprod.cloudflare.dev; HttpOnly; Secure; SameSite=None`,
+					cookie,
 				},
 				redirect: "manual",
 			}
@@ -208,7 +214,7 @@ describe("Preview Worker", () => {
 			{
 				method: "PUT",
 				headers: {
-					cookie: `token=${tokenId}; Domain=preview.devprod.cloudflare.dev; HttpOnly; Secure; SameSite=None`,
+					cookie,
 				},
 				redirect: "manual",
 			}
@@ -223,7 +229,7 @@ describe("Preview Worker", () => {
 				method: "PUT",
 				headers: {
 					"X-Custom-Header": "custom",
-					cookie: `token=${tokenId}; Domain=preview.devprod.cloudflare.dev; HttpOnly; Secure; SameSite=None`,
+					cookie,
 				},
 				redirect: "manual",
 			}
@@ -237,7 +243,7 @@ describe("Preview Worker", () => {
 			{
 				method: "PUT",
 				headers: {
-					cookie: `token=${tokenId}; Domain=preview.devprod.cloudflare.dev; HttpOnly; Secure; SameSite=None`,
+					cookie,
 				},
 				redirect: "manual",
 			}

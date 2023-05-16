@@ -59,6 +59,34 @@ class PreviewRequestFailed extends HttpError {
 	}
 }
 
+function toSetCookie(token: string, remote: string, domain: string): string[] {
+	// The token can sometimes be too large for a cookie (4096 bytes).
+	// ...store it across multiple cookies
+	// This is fairly ugly, but it means that there's no need to store
+	// a server-side lookup table for tokens (with KV or similar)
+	// which reduces the accessible surface areas for tokens
+	let tokenCookie = JSON.stringify({ token, remote });
+	let tokenCookies = [];
+	// To avoid any _actual_ UTF-8 calculations (and the headaches of possible
+	// code-point splitting), this pessimistically assumes that all characters
+	// are 4 bytes long
+	while (tokenCookie.length > 1024) {
+		tokenCookies.push(tokenCookie.slice(0, 1024));
+		tokenCookie = tokenCookie.slice(1024);
+	}
+
+	tokenCookies.push(tokenCookie);
+
+	return tokenCookies.map((c, idx) =>
+		cookie.serialize(`cf-preview-token-${idx}`, c, {
+			secure: true,
+			sameSite: "none",
+			httpOnly: true,
+			domain,
+		})
+	);
+}
+
 function switchRemote(url: URL, remote: string) {
 	const workerUrl = new URL(url);
 	const remoteUrl = new URL(remote);
@@ -115,11 +143,13 @@ async function handleRequest(
 	 */
 	const parsedCookies = cookie.parse(request.headers.get("Cookie") ?? "");
 
-	const tokenId = parsedCookies?.token;
-
 	const { token, remote } = JSON.parse(
-		(await env.TOKEN_LOOKUP.get(tokenId)) ?? "{}"
+		Object.entries(parsedCookies)
+			.filter(([name]) => !!name.startsWith("cf-preview-token-"))
+			.map(([_, value]) => value)
+			.join("")
 	);
+
 	if (!token || !remote) {
 		throw new PreviewRequestFailed();
 	}
@@ -130,10 +160,18 @@ async function handleRequest(
 			headers: {
 				...Object.fromEntries(request.headers),
 				"cf-workers-preview-token": token,
+				cookie: Object.entries(parsedCookies)
+					.filter(([name]) => !name.startsWith("cf-preview-token-"))
+					.map(
+						([name, value]) =>
+							`${encodeURIComponent(name)}=${encodeURIComponent(value)}`
+					)
+					.join("; "),
 			},
 			redirect: "manual",
 		})
 	);
+
 	const embeddable = new Response(original.body, original);
 	// This will be embedded in an iframe. In particular, the Cloudflare error page sets this header.
 	embeddable.headers.delete("X-Frame-Options");
@@ -219,7 +257,7 @@ async function updatePreviewToken(url: URL, env: Env, ctx: ExecutionContext) {
 	const token = url.searchParams.get("token");
 	const prewarmUrl = url.searchParams.get("prewarm");
 	const remote = url.searchParams.get("remote");
-	// return Response.json([...url.searchParams.entries()]);
+
 	if (!token || !prewarmUrl || !remote) {
 		throw new TokenUpdateFailed();
 	}
@@ -233,28 +271,15 @@ async function updatePreviewToken(url: URL, env: Env, ctx: ExecutionContext) {
 		})
 	);
 
-	// The token can sometimes be too large for a cookie (4096 bytes).
-	// Store the token in KV, and allow lookups
-
-	const tokenId = crypto.randomUUID();
-
-	await env.TOKEN_LOOKUP.put(tokenId, JSON.stringify({ token, remote }), {
-		// A preview token should only be valid for an hour.
-		// Store it for 2 just in case
-		expirationTtl: 60 * 60 * 2,
-	});
-
 	return new Response(null, {
 		status: 307,
-		headers: {
-			Location: url.searchParams.get("suffix") ?? "/",
-			"Set-Cookie": cookie.serialize("token", tokenId, {
-				secure: true,
-				sameSite: "none",
-				httpOnly: true,
-				domain: url.hostname,
-			}),
-		},
+		headers: [
+			["Location", url.searchParams.get("suffix") ?? "/"],
+			...toSetCookie(token, remote, url.hostname).map((sc) => [
+				"Set-Cookie",
+				sc,
+			]),
+		],
 	});
 }
 
