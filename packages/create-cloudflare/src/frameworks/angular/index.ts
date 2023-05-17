@@ -28,7 +28,7 @@ const generate = async (ctx: PagesGeneratorContext) => {
 
 const configure = async (ctx: PagesGeneratorContext) => {
 	process.chdir(ctx.project.path);
-	await runCommand(`${npx} @angular/cli@next analytics disable`, {
+	await runCommand(`${npx} @angular/cli@latest analytics disable`, {
 		silent: true,
 	});
 	await addSSRAdapter();
